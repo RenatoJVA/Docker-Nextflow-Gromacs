@@ -1,0 +1,26 @@
+FROM nvidia/cuda:12.4.1-base-ubuntu22.04
+
+# Variables
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Instalar dependencias básicas, Java (Nextflow necesita), GROMACS y MPI
+RUN apt-get update && apt-get install -y \
+    build-essential cmake git wget curl vim tree\
+    openjdk-17-jre \
+    gromacs openmpi-bin libopenmpi-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+
+# Instalar Nextflow en /usr/local/bin
+WORKDIR /usr/local/bin
+RUN curl -s https://get.nextflow.io | bash && \
+    chmod +x nextflow
+
+# Carpeta de trabajo por defecto
+WORKDIR /workspace
+
+# Verificar instalación
+RUN java -version && nextflow -version && gmx --version
+
+# Entrada por defecto
+CMD ["/bin/bash"]

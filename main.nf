@@ -3,141 +3,166 @@ nextflow.enable.dsl=2
 params.pdb_id   = "1AKI"
 params.water    = "spce"
 params.output   = "results"
-params.mdp      = "mdp"
+params.mdp_dir  = "${baseDir}/mdp"
 
 // ==========================
 // Procesos
 // ==========================
 process download_pdb {
-    publishDir "input", mode: 'copy'
+    publishDir ".", mode: 'copy'
 
     output:
-    path("${params.pdb_id}.pdb")
-    path("${params.pdb_id}_clean.pdb")
+    tuple val(params.pdb_id), path("${params.pdb_id}")
 
     script:
     """
-    wget https://files.rcsb.org/download/${params.pdb_id}.pdb -O ${params.pdb_id}.pdb
+    mkdir -p ${params.pdb_id}
+    wget https://files.rcsb.org/download/${params.pdb_id}.pdb
     grep -v HOH ${params.pdb_id}.pdb > ${params.pdb_id}_clean.pdb
+    mv ${params.pdb_id}.pdb ${params.pdb_id}/
+    mv ${params.pdb_id}_clean.pdb ${params.pdb_id}/
+    # Copiar archivos mdp uno por uno
+    for mdp in ions.mdp md.mdp minim.mdp npt.mdp nvt.mdp; do
+        cp -L ${params.mdp_dir}/\$mdp ${params.pdb_id}/ || echo "Warning: Could not copy \$mdp"
+    done
     """
 }
 
 process pdb2gmx {
+    publishDir ".", mode: 'copy'
+    
     input:
-    path pdb_file
-
+    tuple val(pdb_id), path(workdir)
+    
     output:
-    tuple path("${params.pdb_id}_processed.gro"), path("topol.top"), path("*.itp")
-
+    tuple val(pdb_id), path(workdir), path("${workdir}/${pdb_id}_processed.gro"), path("${workdir}/topol.top"), path("${workdir}/posre.itp")
+    
     script:
     """
-    gmx pdb2gmx -f $pdb_file -o ${params.pdb_id}_processed.gro -water ${params.water} <<EOF
+    # Nos aseguramos de estar en el directorio correcto
+    cd ${workdir}
+    
+    # Ejecutamos pdb2gmx desde el directorio de trabajo y especificamos las rutas completas
+    gmx pdb2gmx -f ${pdb_id}_clean.pdb -o ${pdb_id}_processed.gro -p topol.top -i posre.itp -water ${params.water} <<EOF
 1
 EOF
     """
 }
 
 process define_box {
+    publishDir ".", mode: 'copy'
+
     input:
-    tuple path(gro), path(top), path(itps)
+    tuple val(pdb_id), path(workdir), path(gro), path(top), path(itps)
 
     output:
-    tuple path("boxed.gro"), path(top), path(itps)
+    tuple val(pdb_id), path(workdir), path("${workdir}/boxed.gro"), path(top), path(itps)
 
     script:
     """
-    gmx editconf -f $gro -o boxed.gro -c -d 1.0 -bt cubic
+    cd ${workdir}
+    gmx editconf -f ${gro.simpleName}.gro -o boxed.gro -c -d 1.0 -bt cubic
     """
 }
 
 process solvate {
+    publishDir ".", mode: 'copy'
+
     input:
-    tuple path(gro), path(top), path(itps)
+    tuple val(pdb_id), path(workdir), path(gro), path(top), path(itps)
 
     output:
-    tuple path("solvated.gro"), path(top), path(itps)
+    tuple val(pdb_id), path(workdir), path("${workdir}/solvated.gro"), path(top), path(itps)
 
     script:
     """
-    gmx solvate -cp $gro -cs spc216.gro -o solvated.gro -p $top
+    cd ${workdir}
+    gmx solvate -cp ${gro.name} -cs spc216.gro -o solvated.gro -p topol.top
     """
 }
 
 process ions {
+    publishDir ".", mode: 'copy'
+
     input:
-    tuple path(gro), path(top), path(itps)
-    path ions_mdp = "${params.mdp}/ions.mdp"
+    tuple val(pdb_id), path(workdir), path(gro), path(top), path(itps)
 
     output:
-    tuple path("ions.gro"), path(top), path(itps)
+    tuple val(pdb_id), path(workdir), path("${workdir}/ions.gro"), path(top), path(itps)
 
     script:
     """
-    gmx grompp -f $ions_mdp -c $gro -p $top -o ions.tpr
-    echo "SOL" | gmx genion -s ions.tpr -o ions.gro -p $top -pname NA -nname CL -neutral
+    cd ${workdir}
+    gmx grompp -f ions.mdp -c ${gro.name} -p topol.top -o ions.tpr
+    echo "SOL" | gmx genion -s ions.tpr -o ions.gro -p topol.top -pname NA -nname CL -neutral
     """
 }
 
 process minimization {
+    publishDir ".", mode: 'copy'
+
     input:
-    tuple path(gro), path(top), path(itps)
-    path minim_mdp = "${params.mdp}/minim.mdp"
+    tuple val(pdb_id), path(workdir), path(gro), path(top), path(itps)
 
     output:
-    tuple path("em.gro"), path(top), path(itps)
+    tuple val(pdb_id), path(workdir), path("${workdir}/em.gro"), path(top), path(itps)
 
     script:
     """
-    gmx grompp -f $minim_mdp -c $gro -p $top -o em.tpr
-    gmx mdrun -deffnm em
+    cd ${workdir}
+    gmx grompp -f minim.mdp -c ${gro.name} -p topol.top -o em.tpr
+    gmx mdrun -deffnm em -nt 8
     """
 }
 
 process nvt {
+    publishDir ".", mode: 'copy'
+
     input:
-    tuple path(gro), path(top), path(itps)
-    path nvt_mdp = "${params.mdp}/nvt.mdp"
+    tuple val(pdb_id), path(workdir), path(gro), path(top), path(itps)
 
     output:
-    tuple path("nvt.gro"), path(top), path(itps)
+    tuple val(pdb_id), path(workdir), path("${workdir}/nvt.gro"), path(top), path(itps)
 
     script:
     """
-    gmx grompp -f $nvt_mdp -c $gro -p $top -o nvt.tpr
-    gmx mdrun -deffnm nvt
+    cd ${workdir}
+    gmx grompp -f nvt.mdp -c ${gro.name} -r ${gro.name} -p topol.top -o nvt.tpr
+    gmx mdrun -nice 0 -v -deffnm nvt -ntmpi 1 -ntomp 8 -nb gpu -pin on -pinoffset 0 -pinstride 1
     """
 }
 
 process npt {
+    publishDir ".", mode: 'copy'
+
     input:
-    tuple path(gro), path(top), path(itps)
-    path npt_mdp = "${params.mdp}/npt.mdp"
+    tuple val(pdb_id), path(workdir), path(gro), path(top), path(itps)
 
     output:
-    tuple path("npt.gro"), path(top), path(itps)
+    tuple val(pdb_id), path(workdir), path("${workdir}/npt.gro"), path(top), path(itps)
 
     script:
     """
-    gmx grompp -f $npt_mdp -c $gro -p $top -o npt.tpr
-    gmx mdrun -deffnm npt
+    cd ${workdir}
+    gmx grompp -f npt.mdp -c ${gro.name} -r ${gro.name} -p topol.top -o npt.tpr
+    gmx mdrun -nice 0 -v -deffnm npt -nt 8 -ntmpi 1 -ntomp 8 -nb gpu -pin on -pinoffset 0 -pinstride 1
     """
 }
 
 process md {
+    publishDir ".", mode: 'copy'
+
     input:
-    tuple path(gro), path(top), path(itps)
-    path md_mdp = "${params.mdp}/md.mdp"
+    tuple val(pdb_id), path(workdir), path(gro), path(top), path(itps)
 
     output:
-    path("md.gro")
-    path("md.edr")
-    path("md.log")
-    path("md.trr")
+    tuple path("${workdir}/md.gro"), path("${workdir}/md.edr"), path("${workdir}/md.log"), path("${workdir}/md.trr")
 
     script:
     """
-    gmx grompp -f $md_mdp -c $gro -p $top -o md.tpr
-    gmx mdrun -deffnm md
+    cd ${workdir}
+    gmx grompp -f md.mdp -c ${gro.name} -r ${gro.name} -t ${gro.name} -p topol.top -o md.tpr
+    gmx mdrun -nice 0 -v -deffnm md -ntmpi 1 -ntomp 8 -nb gpu -pin on -pinoffset 0 -pinstride 1
     """
 }
 
@@ -162,14 +187,15 @@ process copy_results {
 // Workflow
 // ==========================
 workflow {
-    ch_pdb   = download_pdb()
-    ch_gmx   = pdb2gmx(ch_pdb[1])
+    ch_setup = download_pdb()
+    
+    // Todos los procesos trabajarán en el directorio de la proteína
+    ch_gmx   = pdb2gmx(ch_setup)
     ch_box   = define_box(ch_gmx)
     ch_solv  = solvate(ch_box)
     ch_ions  = ions(ch_solv)
     ch_em    = minimization(ch_ions)
     ch_nvt   = nvt(ch_em)
     ch_npt   = npt(ch_nvt)
-    ch_md    = md(ch_npt)
-    copy_results(ch_md)
+    md(ch_npt)
 }

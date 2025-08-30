@@ -28,14 +28,12 @@ process download_pdb {
     """
 }
 
-process pdb2gmx {
-    publishDir ".", mode: 'copy'
-    
+process pdb2gmx {    
     input:
     tuple val(pdb_id), path(workdir)
     
     output:
-    tuple val(pdb_id), path(workdir), path("${workdir}/${pdb_id}_processed.gro"), path("${workdir}/topol.top"), path("${workdir}/posre.itp")
+    tuple val(pdb_id), path(workdir), path("${pdb_id}_processed.gro"), path("topol.top"), path("posre.itp")
     
     script:
     """
@@ -50,13 +48,11 @@ EOF
 }
 
 process define_box {
-    publishDir ".", mode: 'copy'
-
     input:
     tuple val(pdb_id), path(workdir), path(gro), path(top), path(itps)
 
     output:
-    tuple val(pdb_id), path(workdir), path("${workdir}/boxed.gro"), path(top), path(itps)
+    tuple val(pdb_id), path(workdir), path("boxed.gro"), path(top), path(itps)
 
     script:
     """
@@ -66,13 +62,11 @@ process define_box {
 }
 
 process solvate {
-    publishDir ".", mode: 'copy'
-
     input:
     tuple val(pdb_id), path(workdir), path(gro), path(top), path(itps)
 
     output:
-    tuple val(pdb_id), path(workdir), path("${workdir}/solvated.gro"), path(top), path(itps)
+    tuple val(pdb_id), path(workdir), path("solvated.gro"), path(top), path(itps)
 
     script:
     """
@@ -82,13 +76,11 @@ process solvate {
 }
 
 process ions {
-    publishDir ".", mode: 'copy'
-
     input:
     tuple val(pdb_id), path(workdir), path(gro), path(top), path(itps)
 
     output:
-    tuple val(pdb_id), path(workdir), path("${workdir}/ions.gro"), path(top), path(itps)
+    tuple val(pdb_id), path(workdir), path("ions.gro"), path(top), path(itps)
 
     script:
     """
@@ -99,13 +91,11 @@ process ions {
 }
 
 process minimization {
-    publishDir ".", mode: 'copy'
-
     input:
     tuple val(pdb_id), path(workdir), path(gro), path(top), path(itps)
 
     output:
-    tuple val(pdb_id), path(workdir), path("${workdir}/em.gro"), path(top), path(itps)
+    tuple val(pdb_id), path(workdir), path("em.gro"), path(top), path(itps)
 
     script:
     """
@@ -116,19 +106,17 @@ process minimization {
 }
 
 process nvt {
-    publishDir ".", mode: 'copy'
-
     input:
     tuple val(pdb_id), path(workdir), path(gro), path(top), path(itps)
 
     output:
-    tuple val(pdb_id), path(workdir), path("${workdir}/nvt.gro"), path(top), path(itps)
+    tuple val(pdb_id), path(workdir), path("nvt.gro"), path(top), path(itps)
 
     script:
     """
     cd ${workdir}
     gmx grompp -f nvt.mdp -c ${gro.name} -r ${gro.name} -p topol.top -o nvt.tpr
-    gmx mdrun -nice 0 -v -deffnm nvt -ntmpi 1 -ntomp 8 -nb gpu -pin on -pinoffset 0 -pinstride 1
+    gmx mdrun -nice 0 -v -deffnm nvt -ntmpi 1 -ntomp 24 -pin on -pinoffset 0 -pinstride 1 -nb gpu
     """
 }
 
@@ -139,13 +127,14 @@ process npt {
     tuple val(pdb_id), path(workdir), path(gro), path(top), path(itps)
 
     output:
-    tuple val(pdb_id), path(workdir), path("${workdir}/npt.gro"), path(top), path(itps)
+    tuple val(pdb_id), path(workdir), path("${workdir}/npt.gro"), path("${workdir}/npt.cpt"), path(top), path(itps)
+
 
     script:
     """
     cd ${workdir}
     gmx grompp -f npt.mdp -c ${gro.name} -r ${gro.name} -p topol.top -o npt.tpr
-    gmx mdrun -nice 0 -v -deffnm npt -nt 8 -ntmpi 1 -ntomp 8 -nb gpu -pin on -pinoffset 0 -pinstride 1
+    gmx mdrun -nice 0 -v -deffnm npt -ntmpi 1 -ntomp 24 -pin on -pinoffset 0 -pinstride 1 -nb gpu 
     """
 }
 
@@ -153,7 +142,7 @@ process md {
     publishDir ".", mode: 'copy'
 
     input:
-    tuple val(pdb_id), path(workdir), path(gro), path(top), path(itps)
+    tuple val(pdb_id), path(workdir), path(gro), path(cpt), path(top), path(itps)
 
     output:
     tuple path("${workdir}/md.gro"), path("${workdir}/md.edr"), path("${workdir}/md.log"), path("${workdir}/md.trr")
@@ -161,8 +150,8 @@ process md {
     script:
     """
     cd ${workdir}
-    gmx grompp -f md.mdp -c ${gro.name} -r ${gro.name} -t ${gro.name} -p topol.top -o md.tpr
-    gmx mdrun -nice 0 -v -deffnm md -ntmpi 1 -ntomp 8 -nb gpu -pin on -pinoffset 0 -pinstride 1
+    gmx grompp -f md.mdp -c ${gro.name} -r ${gro.name} -t ${cpt.name} -p topol.top -o md.tpr
+    gmx mdrun -nice 0 -v -deffnm md -ntmpi 1 -ntomp 24 -pin on -pinoffset 0 -pinstride 1 -nb gpu 
     """
 }
 

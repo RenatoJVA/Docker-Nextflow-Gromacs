@@ -46,7 +46,7 @@ RUN wget https://ftp.gromacs.org/gromacs/gromacs-2024.4.tar.gz && \
 # =============================
 # Compilar versión SINGLE (SP)
 # =============================
-RUN cd gromacs-2024.4 && mkdir build-sp && cd build-sp && \
+RUN cd gromacs-2024.4 && mkdir build && cd build && \
   CC=gcc CXX=g++ cmake .. \
   -DGMX_OPENMP=ON \
   -DGMX_BUILD_OWN_FFTW=ON \
@@ -61,7 +61,7 @@ RUN cd gromacs-2024.4 && mkdir build-sp && cd build-sp && \
 # =============================
 # Compilar versión DOUBLE (DP)
 # =============================
-RUN cd gromacs-2024.4 && mkdir build-dp && cd build-dp && \
+RUN cd gromacs-2024.4 && rm -rf build && mkdir build && cd build && \
   CC=gcc CXX=g++ cmake .. \
   -DGMX_OPENMP=ON \
   -DGMX_BUILD_OWN_FFTW=ON \
@@ -75,7 +75,7 @@ RUN cd gromacs-2024.4 && mkdir build-dp && cd build-dp && \
 # =============================
 # Configurar entorno
 # =============================
-RUN echo -e "\n#########################################################################\n########################### Gromacs #####################################\n# Single precision\nsource /usr/local/gromacs-sp/bin/GMXRC\n# Double precision\nsource /usr/local/gromacs-dp/bin/GMXRC\nexport GMX_MAXBACKUP=999" \
+RUN echo -e "\n#########################################################################\n########################### Gromacs #####################################\nsource /usr/local/gromacs/bin/GMXRC\nexport GMX_MAXBACKUP=999" \
   >> /etc/bash.bashrc
 
 ENV PATH=/usr/local/gromacs-sp/bin:/usr/local/gromacs-dp/bin:$PATH
@@ -88,4 +88,4 @@ WORKDIR /workspace
 # =============================
 # Entrada por defecto
 # =============================
-CMD ["bash"]
+CMD ["bash"]% 

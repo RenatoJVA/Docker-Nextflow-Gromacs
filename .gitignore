@@ -1,0 +1,13 @@
+# Carpeta de herramientas
+TOOLS/
+
+# Archivos de Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+*.ipynb
+
+# Archivos de Nextflow
+.nextflow/
+.nextflow.*
+work/
+.nextflow.log*

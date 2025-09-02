@@ -1,6 +1,24 @@
 FROM nvidia/cuda:12.9.1-cudnn-devel-ubuntu24.04
 
 # =============================
+# Variables para el usuario
+# =============================
+ARG USERNAME=renato
+ARG USER_UID=1000
+ARG USER_GID=1000
+
+# =============================
+# Crear usuario con UID/GID del host
+# =============================
+RUN groupadd --gid $USER_GID $USERNAME \
+    && useradd --uid $USER_UID --gid $USER_GID -m $USERNAME \
+    && apt-get update && apt-get install -y --no-install-recommends \
+       bash \
+       git \
+       wget \
+    && rm -rf /var/lib/apt/lists/*
+
+# =============================
 # Variables de entorno
 # =============================
 ENV DEBIAN_FRONTEND=noninteractive \
@@ -30,9 +48,13 @@ RUN apt-get update && apt-get install -y \
 # =============================
 # Instalar Nextflow
 # =============================
-WORKDIR /usr/local/bin
+# WORKDIR /usr/local/bin
+# RUN curl -s https://get.nextflow.io | bash && \
+#   chmod +x nextflow
 RUN curl -s https://get.nextflow.io | bash && \
-  chmod +x nextflow
+  chown ${USER_UID}:${USER_GID} nextflow && \
+  mv nextflow /usr/local/bin/
+
 
 WORKDIR /opt
 
@@ -81,6 +103,10 @@ RUN echo -e "\n#################################################################
 ENV PATH=/usr/local/gromacs-sp/bin:/usr/local/gromacs-dp/bin:$PATH
 
 # =============================
+# Cambiar a usuario no-root
+# =============================
+USER ${USERNAME}
+# =============================
 # Carpeta de trabajo
 # =============================
 WORKDIR /workspace
@@ -88,4 +114,5 @@ WORKDIR /workspace
 # =============================
 # Entrada por defecto
 # =============================
-CMD ["bash"]% 
+# CMD ["bash"]
+ENTRYPOINT ["/bin/bash", "-l"]

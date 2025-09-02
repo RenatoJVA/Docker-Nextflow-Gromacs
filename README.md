@@ -32,7 +32,11 @@ cd Docker-Nextflow-Gromacs
 
 2. Build the Docker image:
 ```bash
-docker build -t gmx .
+docker build \
+  --build-arg USER_UID=$(id -u) \
+  --build-arg USER_GID=$(id -g) \
+  --build-arg USERNAME=$(whoami) \
+  -t gmx .
 ```
 
 3. Run the container:

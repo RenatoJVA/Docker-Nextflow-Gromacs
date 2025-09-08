@@ -41,7 +41,7 @@ docker build \
 
 3. Run the container:
 ```bash
-docker run --runtime=nvidia --gpus all -it --rm -v ${PWD}:/workspace gmx
+docker run --gpus all -it --rm -v ${PWD}:/workspace gmx
 ```
 
 4. Inside the container, run the Nextflow pipeline:

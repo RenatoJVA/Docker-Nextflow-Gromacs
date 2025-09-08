@@ -29,6 +29,9 @@ ENV DEBIAN_FRONTEND=noninteractive \
 # Instalar dependencias
 # =============================
 RUN apt-get update && apt-get install -y \
+  python3 \
+  python3-pip \
+  python3-dev \
   build-essential \
   cmake \
   git \
@@ -76,7 +79,7 @@ RUN cd gromacs-2024.4 && mkdir build && cd build && \
   -DGMX_GPU=CUDA \
   -DCUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda \
   -DGMX_FFT_LIBRARY=fftw3 \
-  -DGMX_PYTHON_PACKAGE=OFF \
+  -DGMX_PYTHON_PACKAGE=ON \
   -DGMX_PREFER_STATIC_LIBS=ON && \
   make -j"$(nproc)" && make install
 
@@ -89,11 +92,17 @@ RUN cd gromacs-2024.4 && rm -rf build && mkdir build && cd build && \
   -DGMX_BUILD_OWN_FFTW=ON \
   -DREGRESSIONTEST_DOWNLOAD=ON \
   -DGMX_FFT_LIBRARY=fftw3 \
-  -DGMX_PYTHON_PACKAGE=OFF \
+  -DGMX_PYTHON_PACKAGE=ON \
   -DGMX_PREFER_STATIC_LIBS=ON \
   -DGMX_DOUBLE=on && \
   make -j"$(nproc)" && make install
 
+# =============================
+# Instalar gmxapi (Python)
+# =============================
+RUN pip install --upgrade pip setuptools wheel \
+    && pip install gmxapi
+    
 # =============================
 # Configurar entorno
 # =============================
